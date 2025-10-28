@@ -1,0 +1,111 @@
+//行事曆
+
+<script type="module">
+    import { createRecord, readRecords, updateRecord, deleteRecord } from './supabaseService.js'
+
+    const tableName = '行事曆'
+    let userId = null
+    let userName = null
+
+    // === 初始化 LIFF 並登入 ===
+    window.onload = async () => {
+      try {
+        await liff.init({ liffId: '2008228534-vAzlOYLb' })
+
+        if (!liff.isLoggedIn()) {
+          liff.login()
+          return
+        }
+
+        const profile = await liff.getProfile()
+        userId = profile.userId
+        userName = profile.displayName
+
+        document.getElementById('user').textContent = `👤 使用者：${userName}`
+        await loadRecords()
+      } catch (err) {
+        console.error('LIFF 初始化錯誤:', err)
+      }
+    }
+
+    // === 載入行程 ===
+    async function loadRecords() {
+      const { data, error } = await readRecords(tableName, { elder_user_id: userId })
+      const list = document.getElementById('list')
+      list.innerHTML = ''
+      if (error) {
+        list.innerHTML = `<li>❌ 載入失敗：${error.message}</li>`
+        return
+      }
+
+      if (data.length === 0) {
+        list.innerHTML = '<li>尚無行程資料</li>'
+        return
+      }
+
+      data.forEach(item => {
+        const dateObj = new Date(item.schedule_time)
+        const dateStr = dateObj.toLocaleDateString('zh-TW')
+        const timeStr = dateObj.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+
+        const li = document.createElement('li')
+        li.innerHTML = `
+          <strong>${dateStr} ${timeStr}</strong>：${item.schedule_note}
+          <button onclick="editRecord('${item.uuid}', '${item.schedule_note}')">✏️</button>
+          <button onclick="removeRecord('${item.uuid}')">🗑️</button>
+        `
+        list.appendChild(li)
+})
+    }
+
+    // === 新增行程 ===
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('addBtn').addEventListener('click', async () => {
+        const date = document.getElementById('date').value
+        const time = document.getElementById('time').value
+        const note = document.getElementById('schedule_note').value
+
+        if (!date || !time || !note) return alert('請填寫完整')
+
+        const schedule_time = new Date(`${date}T${time}:00`).toISOString()
+
+        const { error } = await createRecord(tableName, [{
+          elder_user_id: userId,
+          elder_name: userName,
+          schedule_time: schedule_time,
+          schedule_note: note,
+          is_reminded: false
+        }])
+
+        if (error) alert('新增失敗：' + error.message)
+        else {
+          alert('✅ 新增成功')
+          document.getElementById('schedule_note').value = ''
+          await loadRecords()
+        }
+      })
+    })
+
+    // === 修改行程 ===
+    window.editRecord = async (uuid, oldNote) => {
+      const newNote = prompt('請輸入新備註內容：', oldNote)
+      if (!newNote || newNote === oldNote) return
+      const { error } = await updateRecord(tableName, 'uuid', uuid, { schedule_note: newNote })
+      if (error) alert('更新失敗：' + error.message)
+      else {
+        alert('✅ 更新成功')
+        loadRecords()
+      }
+    }
+
+    // === 刪除行程 ===
+    window.removeRecord = async (uuid) => {
+      if (!confirm('確定要刪除此行程嗎？')) return
+      const { error } = await deleteRecord(tableName, 'uuid', uuid)
+      if (error) alert('刪除失敗：' + error.message)
+      else {
+        alert('✅ 已刪除')
+        loadRecords()
+      }
+    }
+  </script>
