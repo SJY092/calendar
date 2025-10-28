@@ -1,40 +1,256 @@
-//行事曆
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>行事曆</title>
+  <style>
+  /* 全域設定 */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Arial", sans-serif;
+    padding: 0;
+    background: #ffffff;
+    color: #222;
+  }
 
-<script type="module">
-    import { createRecord, readRecords, updateRecord, deleteRecord } from './supabaseService.js'
+  /* 導覽列 */
+  .nav-1{
+    display:flex; 
+    align-items:center; 
+    justify-content:space-between;
+    padding:10px 25px; 
+    position:sticky; 
+    top:0; 
+    z-index:1001;
+    width:100%; 
+    background:#fff; 
+    border-bottom:1px solid #ddd;
+  }
+
+  h1{ 
+    margin:0; 
+    font-size:28px; }
+
+  h2{ 
+    margin:5px 0; 
+    font-size:24px; 
+    display:inline-block;
+    padding: 0 5px;
+    }
+
+  h3{ 
+    margin:0; 
+    text-align:center; 
+    font-size:20px; }
+
+  /* 調整：讓表單與表格左右對齊並移除 table 固定 min-width */
+  .div-b {
+    width:100%; 
+    max-width:800px; 
+    margin: 0; 
+    padding: 0 20px 0;
+  }
+
+  form {
+    margin: 10px 0; /* 移除左右 18px 外距，改用容器內距對齊 */
+    padding: 18px; 
+    border-radius:16px; 
+    background:#fff;
+    border:1px solid #ccc;
+  }
+
+  label { 
+    display:block; 
+    margin-top:0; 
+    font-size:20px; }
+
+  input[type="text"], input[type="date"], input[type="time"], textarea,
+  #editModal input, #editModal textarea {
+    width:100%; 
+    padding:8px; 
+    margin-top:6px; 
+    margin: 5 0 15px;
+    border-radius:8px; 
+    border:1px solid #ccc;
+    font-size:16px; 
+    background:#fff;
+  }
+
+  .btn {
+    margin-top:12px; padding:10px 18px; border:none; border-radius:12px; color:#fff; cursor:pointer;
+    font-size:16px;
+  }
+  #addBtn{ background:#4a90e2; } #historyBtn{ background:#f39c12; margin-left:8px; }
+
+  /* 表格容器：可橫向滾動，並在無資料時隱藏（JS 控制顯示） */
+  .allTable-div, .table-container {
+    width:100%; 
+    margin:10px 0 17px 0; 
+    overflow-x:auto; 
+    overflow-y: auto;
+    -webkit-overflow-scrolling:touch;
+    border:1px solid #aaa; 
+    border-radius:20px; 
+    background:white;
+    display:block;
+    padding: none; /* 與 form 內距一致，讓內容列對齊 */
+    box-sizing: border-box;
+  }
+
+  .allTable-div table, table {
+    width:100%; 
+    border-collapse:collapse; 
+    min-width:0; /* 允許在窄螢幕時收縮，避免與 form 不對齊 */
+    font-size:14px;
+    background:transparent;
+  }
+
+  th, td {
+    padding:10px; 
+    text-align:center; 
+    border:1px solid #e6e6e6; 
+    white-space:nowrap;
+  }
+  th { 
+    background:#f9f9f9; 
+    position:sticky; 
+    top:0; 
+    z-index:2; }
+
+  tbody tr:nth-child(even){ background:#f9f9f9; }
+  tbody tr:nth-child(odd){ background:#fff; }
+
+  /* 表格圓角處理由外層容器負責 */
+  .allTable-div thead tr th:first-child { border-top-left-radius:14px; }
+  .allTable-div thead tr th:last-child { border-top-right-radius:14px; }
+  .allTable-div tbody tr:last-child td:first-child { border-bottom-left-radius:14px; }
+  .allTable-div tbody tr:last-child td:last-child { border-bottom-right-radius:14px; }
+
+  /* Modal 共用樣式 */
+  #editModal, #historyModal, #pastModal {
+    display:none; 
+    position:fixed; 
+    top:0; left:0; 
+    width:100%; 
+    height:100%;
+    background:rgba(0,0,0,0.5); 
+    z-index:1000;
+  }
+  #editModal > div, #historyModal > div, #pastModal > div {
+    background:#fff; 
+    width:420px; 
+    max-width:calc(100% - 40px);
+    margin:80px auto; 
+    padding:18px; 
+    border-radius:12px; 
+    position:relative;
+    box-sizing:border-box; 
+    max-height:calc(100vh - 120px); 
+    overflow-y:auto;
+  }
+  .close-btn { position:absolute; 
+    top:10px; right:10px; 
+    background:transparent; 
+    border:none; font-size:26px; 
+    cursor:pointer; color:#666; }
+    
+  .close-btn:hover{ color:#000; }
+
+  /* 按鈕樣式（Modal） */
+  #saveEditBtn { background:#4a90e2; color:#fff; padding:8px 14px; border-radius:8px; border:none; }
+  #deleteEditBtn { background:#f37a7a; color:#fff; padding:8px 14px; border-radius:8px; border:none; }
+
+  .but-ans { padding:6px 10px; border-radius:8px; border:none; cursor:pointer; background:#61aaf3; color:#fff; }
+
+  /* volunteer area */
+  .volunteer-area { display:flex; align-items:center; gap:8px; }
+  .volunteer-area .avatar { width:36px; height:36px; border-radius:50%; object-fit:cover; border:1px solid #ddd; display:none; }
+  .volunteer-area #volunteerName { cursor:pointer; padding:4px 8px; border-radius:6px; font-size:18px; }
+
+  /* 小螢幕響應式 */
+  @media (max-width: 768px) {
+    .div-b { 
+      padding: 20px; 
+      max-width:100%; }
+
+    form { padding:14px; }
+
+    input[type="text"], input[type="date"], input[type="time"], textarea { 
+      padding:10px; 
+      border-radius:10px; }
+    .allTable-div table { min-width:0; width:100%; }
+    th, td { padding:10px 8px;  white-space:normal; }
+    .btn, button { padding:10px 14px;  }
+    
+    
+  }
+
+  /* 更窄螢幕微調 */
+  @media (max-width: 600px) {
+    .btn { padding:8px 12px; }
+    #editModal > div, #historyModal > div, #pastModal > div { margin:60px auto; padding:12px; }
+    .volunteer-area .avatar { width:32px; height:32px; }
+  }
+  </style>
+
+  <!-- === CRUD設置 === -->
+  <script type="module">
+    import { createRecord, readRecords, updateRecord, deleteRecord } from './APIdata.js'
 
     const tableName = '行事曆'
     let userId = null
     let userName = null
 
-    // === 初始化 LIFF 並登入 ===
+    // === 初始化 LIFF ===
     window.onload = async () => {
-      try {
-        await liff.init({ liffId: '2008228534-vAzlOYLb' })
-
-        if (!liff.isLoggedIn()) {
-          liff.login()
-          return
-        }
-
-        const profile = await liff.getProfile()
-        userId = profile.userId
-        userName = profile.displayName
-
-        document.getElementById('user').textContent = `👤 使用者：${userName}`
-        await loadRecords()
-      } catch (err) {
-        console.error('LIFF 初始化錯誤:', err)
+      await liff.init({ liffId: '2008228534-vAzlOYLb' })   //  LIFF ID
+      if (!liff.isLoggedIn()) {
+        liff.login()
+        return
       }
+
+      const profile = await liff.getProfile()
+      userId = profile.userId
+      userName = profile.displayName
+
+      document.getElementById('user').textContent = `👤 使用者：${userName}`
+      loadRecords()
     }
 
-    // === 載入行程 ===
+    // === 新增資料 ===
+    document.getElementById('addBtn').addEventListener('click', async () => {
+      const date = document.getElementById('date').value
+      const time = document.getElementById('time').value
+      const note = document.getElementById('schedule_note').value
+      if (!date || !time || !note) return alert('請填寫完整資料')
+
+      const schedule_time = new Date(`${date}T${time}:00`).toISOString()
+
+      const { error } = await createRecord(tableName, [{
+        elder_user_id: userId,
+        elder_name: userName,
+        schedule_time: schedule_time, 
+        schedule_note: note,
+        is_reminded: false
+      }])
+
+      if (error) alert('❌ 新增失敗：' + error.message)
+      else {
+        alert('✅ 新增成功')
+        document.getElementById('schedule_note').value = ''
+        loadRecords()
+      }
+    })
+
+    // === 讀取資料 ===
     async function loadRecords() {
       const { data, error } = await readRecords(tableName, { elder_user_id: userId })
       const list = document.getElementById('list')
       list.innerHTML = ''
+
       if (error) {
-        list.innerHTML = `<li>❌ 載入失敗：${error.message}</li>`
+        list.innerHTML = `<li>❌ 讀取失敗：${error.message}</li>`
         return
       }
 
@@ -50,62 +266,442 @@
 
         const li = document.createElement('li')
         li.innerHTML = `
-          <strong>${dateStr} ${timeStr}</strong>：${item.schedule_note}
-          <button onclick="editRecord('${item.uuid}', '${item.schedule_note}')">✏️</button>
-          <button onclick="removeRecord('${item.uuid}')">🗑️</button>
+            <strong>${dateStr} ${timeStr}</strong>：${item.schedule_note}
+            <button onclick="editRecord('${item.uuid}', '${item.schedule_note}')">✏️</button>
+            <button onclick="removeRecord('${item.uuid}')">🗑️</button>
         `
         list.appendChild(li)
-})
+        })
     }
 
-    // === 新增行程 ===
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('addBtn').addEventListener('click', async () => {
-        const date = document.getElementById('date').value
-        const time = document.getElementById('time').value
-        const note = document.getElementById('schedule_note').value
-
-        if (!date || !time || !note) return alert('請填寫完整')
-
-        const schedule_time = new Date(`${date}T${time}:00`).toISOString()
-
-        const { error } = await createRecord(tableName, [{
-          elder_user_id: userId,
-          elder_name: userName,
-          schedule_time: schedule_time,
-          schedule_note: note,
-          is_reminded: false
-        }])
-
-        if (error) alert('新增失敗：' + error.message)
-        else {
-          alert('✅ 新增成功')
-          document.getElementById('schedule_note').value = ''
-          await loadRecords()
-        }
-      })
-    })
-
-    // === 修改行程 ===
+    // === 修改資料 ===
     window.editRecord = async (uuid, oldNote) => {
       const newNote = prompt('請輸入新備註內容：', oldNote)
       if (!newNote || newNote === oldNote) return
-      const { error } = await updateRecord(tableName, 'uuid', uuid, { schedule_note: newNote })
-      if (error) alert('更新失敗：' + error.message)
+      const { error } = await updateRecord(tableName, 'uuid', uuid, {
+        schedule_note: newNote,
+        updated_at: new Date().toISOString()
+      })
+      if (error) alert('❌ 更新失敗：' + error.message)
       else {
         alert('✅ 更新成功')
         loadRecords()
       }
     }
 
-    // === 刪除行程 ===
+    // === 刪除資料 ===
     window.removeRecord = async (uuid) => {
       if (!confirm('確定要刪除此行程嗎？')) return
       const { error } = await deleteRecord(tableName, 'uuid', uuid)
-      if (error) alert('刪除失敗：' + error.message)
+      if (error) alert('❌ 刪除失敗：' + error.message)
       else {
         alert('✅ 已刪除')
         loadRecords()
       }
     }
   </script>
+</head>
+<body>
+  <nav class="nav-1">
+    <div> 
+  <h1 style="margin: 0; font-size: 28px;">行事曆</h1>
+    </div>
+    <div style="display:flex; align-items:center;">
+    <h1 style="margin:0; text-align:right;">
+      <span class="volunteer-area" style="display:flex; align-items:center; gap:8px;">
+        <img id="volunteerAvatar" class="avatar" src="default-avatar.png" alt="avatar" 
+             style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #0984e3;">
+        <span id="volunteerName" title="點此以 Line 登入" style="cursor:pointer; font-size: 26px;">載入中</span>
+      </span>
+    </h1>
+  </div>
+  </nav>
+  <div class="div-b">
+    <h2>輸入內容</h2>
+    <form id="dataForm" onsubmit="return false;">
+      <label>日期</label>
+      <input type="date" id="date" placeholder="例如(例：2025-10-02)" />
+      <label>時間</label>
+      <input type="time" id="time" placeholder="例如：09:00" />
+      <label>行程提醒</label>
+      <input type="text" maxlength="25"  id="event" placeholder="限25字"/>
+      <label>備註</label>
+      <input type="text"  maxlength="25"  id="note" placeholder="限25字"/>
+      <button type="button" class="btn" id="addBtn">新增</button>
+      <button type="button" class="btn" id="historyBtn">檢視過往紀錄</button>
+    </form>
+  
+    <h2>即將到來的行程</h2>
+
+    <!-- 新增：無資料時顯示的訊息 -->
+    <div id="no-record-msg" class="no-record" style="display:none;">目前尚未有紀錄</div>
+
+    <!-- 所有資料的表格 -->
+    <div class="allTable-div">
+      <table id="allTable">
+        <thead>
+          <tr>
+          <th>日期</th>
+          <th>時間</th>
+          <th>行程提醒</th>
+          <th>備註</th>
+          <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 編輯用 Modal -->
+  <div id="editModal">
+    <div>
+      <button id="closeEditModalBtn" class="close-btn" type="button">&times;</button>
+
+      <h3>編輯行程</h3>
+      <form id="editForm" onsubmit="return false;">
+        <label>日期</label>
+        <input type="date" id="editDate" /><br />
+        <label>時間</label>
+        <input type="time" id="editTime" /><br />
+        <label>行程提醒</label>
+        <input type="text" id="editEvent" /><br />
+        <label>備註</label>
+        <input type="text" id="editNote" /><br />
+        <div class="edit-actions">
+          <button type="button" id="saveEditBtn">儲存修改</button>
+          <button type="button" id="deleteEditBtn">刪除</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 過往紀錄 Modal -->
+  <div id="historyModal" style="display:none;">
+    <div>
+      <button id="closeHistoryModalBtn" class="close-btn" type="button">&times;</button>
+      <h3>過往紀錄</h3>
+      <div id="historyContent"></div>
+    </div>
+  </div>
+
+  <!-- 新增：過去時間提示 Modal -->
+  <div id="pastModal" style="display:none;">
+    <div>
+      <button id="closePastModalBtn" class="close-btn" type="button">&times;</button>
+      <h3>注意 — 過去的時間</h3>
+      <p id="pastModalMessage" style="text-align:center; font-size:16px; margin-top:8px;"></p>
+      <div style="text-align:center; margin-top:12px;">
+        <button id="openHistoryFromPast" class="btn" style="background:#f39c12; color:#fff;">前往檢視過往紀錄</button>
+      </div>
+    </div>
+  </div>
+
+  
+
+
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    // 把所有初始化放在一個 DOMContentLoaded 裡，並增加每筆資料的唯一 id，避免透過物件參考找 index 的問題
+    document.addEventListener("DOMContentLoaded", async () => {
+      const bodyEl = document.body;
+      // ---- LIFF 初始化 ----
+      const liffId = '2008228534-vAzlOYLb';
+      const avatarEl = document.getElementById("volunteerAvatar");
+      const nameEl = document.getElementById("volunteerName");
+
+      async function initLiffAndSetProfile() {
+        try {
+          await liff.init({ liffId: liffId });
+
+          if (!liff.isLoggedIn()) {
+            nameEl.innerText = "未登入";
+            avatarEl.style.display = "none";
+            return;
+          }
+
+          const profile = await liff.getProfile();
+          nameEl.innerText = profile.displayName || "志工";
+          if (profile.pictureUrl) {
+            avatarEl.src = profile.pictureUrl;
+            avatarEl.style.display = "inline-block";
+          } else {
+            avatarEl.style.display = "none";
+          }
+        } catch (err) {
+          console.error("LIFF init error:", err);
+        }
+      }
+
+      avatarEl.addEventListener("click", () => {
+        // 直接前往註冊頁（不經由看診資訊頁面）
+        const target = "https://tute582.github.io/Topics/Topics/record-information/註冊頁面.html";
+        if (liff.isLoggedIn()) {
+          window.location.href = target;
+        } else {
+          liff.login({ redirectUri: target });
+        }
+      });
+
+      nameEl.addEventListener("click", () => {
+        if (!liff.isLoggedIn()) {
+          liff.login({
+            redirectUri: "https://tute582.github.io/Topics/Topics/record-information/註冊頁面.html"
+          });
+        } else {
+          alert("已登入：" + (nameEl.innerText || "志工"));
+        }
+      });
+
+      initLiffAndSetProfile();
+
+      // ---- 行事曆功能 ----
+      let records = JSON.parse(localStorage.getItem('calendarRecords') || '[]');
+      // records 每筆格式: { id: <number>, date: 'YYYY-MM-DD', time: 'HH:MM', event: '...', note: '...' }
+      let currentEditId = null;
+
+      function nowDate() { return new Date(); }
+      function parseDateTime(dateStr, timeStr) {
+        // 加上秒以避免某些瀏覽器解析差異
+        return new Date(`${dateStr}T${timeStr}:00`);
+      }
+      function saveToLocalStorage() { localStorage.setItem('calendarRecords', JSON.stringify(records)); }
+
+      // 新增
+      document.getElementById("addBtn").addEventListener("click", () => {
+        const date = document.getElementById("date").value;
+        const time = document.getElementById("time").value;
+        const event = document.getElementById("event").value.trim();
+        const note = document.getElementById("note").value.trim();
+
+        if (!date || !time || !event) { alert("請輸入完整資料！"); return; }
+
+        const id = Date.now() + Math.floor(Math.random() * 1000);
+        const record = { id, date, time, event, note };
+
+        // 如果是過去時間，存進 records 並彈出提示 modal，提示會引導使用者前往「檢視過往紀錄」
+        const dt = parseDateTime(date, time);
+        const now = nowDate();
+
+        records.push(record);
+        saveToLocalStorage();
+
+        if (dt < now) {
+          // 顯示過去時間提示
+          const msgEl = document.getElementById("pastModalMessage");
+          msgEl.textContent = `您輸入的資料 (${date} ${time} - ${event}) 為過去的時間，已放到「檢視過往紀錄」。`;
+          document.getElementById("pastModal").style.display = "block";
+          bodyEl.classList.add('modal-open');
+          // 隱藏主表格（維持行為一致）
+          document.getElementById("allTable").style.display = "none";
+          document.getElementById("no-record-msg").style.display = "block";
+        } else {
+          // 未來時間：正常在上方列表顯示
+          renderAllTable();
+        }
+
+        document.getElementById("dataForm").reset();
+      });
+
+      // 關閉編輯彈窗
+      document.getElementById("closeEditModalBtn").addEventListener("click", () => {
+        document.getElementById("editModal").style.display = "none";
+        bodyEl.classList.remove('modal-open');
+      });
+
+      // 渲染未來行程
+      function renderAllTable() {
+        const tbody = document.querySelector("#allTable tbody");
+        tbody.innerHTML = "";
+        const now = nowDate();
+        const noRecordEl = document.getElementById("no-record-msg");
+
+        const upcomingRecords = records
+          .filter(r => parseDateTime(r.date, r.time) >= now)
+          .sort((a, b) => parseDateTime(a.date, a.time) - parseDateTime(b.date, b.time));
+
+        if (upcomingRecords.length > 0) {
+          document.getElementById("allTable").style.display = "table";
+          if (noRecordEl) noRecordEl.style.display = "none";
+        } else {
+          document.getElementById("allTable").style.display = "none";
+          if (noRecordEl) noRecordEl.style.display = "block";
+        }
+
+        upcomingRecords.forEach(record => {
+          const row = tbody.insertRow();
+          row.innerHTML = `
+            <td>${record.date}</td>
+            <td>${record.time}</td>
+            <td>${escapeHtml(record.event)}</td>
+            <td>${escapeHtml(record.note)}</td>
+            <td><button data-id="${record.id}" class="but-ans edit-btn">編輯</button></td>
+          `;
+        });
+
+        // 為新產生的按鈕綁定事件（避免使用內聯 onclick）
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = Number(btn.getAttribute('data-id'));
+            openEditModalById(id);
+          });
+        });
+      }
+
+      // 打開編輯 modal（透過 id）
+      function openEditModalById(id) {
+        currentEditId = id;
+        const idx = records.findIndex(r => r.id === id);
+        if (idx === -1) return alert('找不到該筆資料');
+        const record = records[idx];
+        document.getElementById("editDate").value = record.date;
+        document.getElementById("editTime").value = record.time;
+        document.getElementById("editEvent").value = record.event;
+        document.getElementById("editNote").value = record.note;
+        document.getElementById("editModal").style.display = "block";
+        bodyEl.classList.add('modal-open');
+      }
+
+      // 刪除
+      document.getElementById("deleteEditBtn").addEventListener("click", () => {
+        if (!confirm("確定要刪除這筆行程嗎？")) return;
+        const idx = records.findIndex(r => r.id === currentEditId);
+        if (idx === -1) { alert('找不到該筆資料'); return; }
+        records.splice(idx, 1);
+        saveToLocalStorage();
+        document.getElementById("editModal").style.display = "none";
+        bodyEl.classList.remove('modal-open');
+        renderAllTable();
+      });
+
+      // 儲存編輯
+      document.getElementById("saveEditBtn").addEventListener("click", () => {
+        const updated = {
+          date: document.getElementById("editDate").value,
+          time: document.getElementById("editTime").value,
+          event: document.getElementById("editEvent").value.trim(),
+          note: document.getElementById("editNote").value.trim()
+        };
+        if (!updated.date || !updated.time || !updated.event) { alert("請輸入完整資料！"); return; }
+        const idx = records.findIndex(r => r.id === currentEditId);
+        if (idx === -1) { alert('找不到該筆資料'); return; }
+        // 保留 id
+        records[idx] = Object.assign({ id: currentEditId }, updated);
+        saveToLocalStorage();
+        document.getElementById("editModal").style.display = "none";
+        bodyEl.classList.remove('modal-open');
+        renderAllTable();
+      });
+
+      // 關閉過往紀錄
+      document.getElementById("closeHistoryModalBtn").addEventListener("click", () => {
+        document.getElementById("historyModal").style.display = "none";
+        bodyEl.classList.remove('modal-open');
+        renderAllTable();
+      });
+
+      // 檢視過往紀錄（Modal）
+      document.getElementById("historyBtn").addEventListener("click", () => {
+        const now = new Date();
+        const pastRecords = records
+          .filter(record => parseDateTime(record.date, record.time) < now)
+          .sort((a, b) => parseDateTime(b.date, b.time) - parseDateTime(a.date, a.time));
+
+        const historyContent = document.getElementById("historyContent");
+        historyContent.innerHTML = '';
+
+        if (pastRecords.length === 0) {
+          historyContent.innerHTML = '<p style="text-align:center;">目前沒有過往紀錄</p>';
+        } else {
+          // 使用與主表格相同的外層容器與 table 結構，套用相同樣式
+          const tableWrapper = document.createElement('div');
+          tableWrapper.className = 'allTable-div';
+          tableWrapper.style.margin = '10px auto'; // 可微調間距
+
+          const table = document.createElement('table');
+          table.id = 'historyTable';
+
+          // 使用與主表格相同的欄位（包含操作欄位，過往紀錄可視需求保留空欄或顯示備註）
+          const thead = document.createElement('thead');
+          thead.innerHTML = `
+            <tr>
+              <th>日期</th>
+              <th>時間</th>
+              <th>行程提醒</th>
+              <th>備註</th>
+              <th>操作</th>
+            </tr>
+          `;
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          pastRecords.forEach(record => {
+            const tr = document.createElement('tr');
+
+            const tdDate = document.createElement('td');
+            tdDate.textContent = record.date;
+            tr.appendChild(tdDate);
+
+            const tdTime = document.createElement('td');
+            tdTime.textContent = record.time;
+            tr.appendChild(tdTime);
+
+            const tdEvent = document.createElement('td');
+            tdEvent.textContent = record.event;
+            tr.appendChild(tdEvent);
+
+            const tdNote = document.createElement('td');
+            tdNote.textContent = record.note;
+            tr.appendChild(tdNote);
+
+            const tdAction = document.createElement('td');
+            // 過往紀錄通常不需編輯，這裡保留空白或顯示不可用按鈕（可按需求修改）
+            tdAction.innerHTML = '<span style="color:#888;">-</span>';
+            tr.appendChild(tdAction);
+
+            tbody.appendChild(tr);
+          });
+
+          table.appendChild(tbody);
+          tableWrapper.appendChild(table);
+          historyContent.appendChild(tableWrapper);
+        }
+
+        document.getElementById("historyModal").style.display = "block";
+        bodyEl.classList.add('modal-open');
+        document.getElementById("allTable").style.display = "none"; // 隱藏主表格
+      });
+
+      // 過去時間提示 Modal 的按鈕處理
+      document.getElementById("openHistoryFromPast").addEventListener("click", () => {
+        // 關閉提示 Modal，開啟過往紀錄 Modal（重用現有 handler）
+        document.getElementById("pastModal").style.display = "none";
+        bodyEl.classList.remove('modal-open');
+        document.getElementById("historyBtn").click();
+      });
+
+      // 新增：過去時間提示 Modal 的叉叉關閉按鈕
+      document.getElementById("closePastModalBtn").addEventListener("click", () => {
+        document.getElementById("pastModal").style.display = "none";
+        bodyEl.classList.remove('modal-open');
+        renderAllTable();
+      });
+
+      // 初始化
+      renderAllTable();
+
+      // 小工具：簡單的 escape，避免插入 html
+      function escapeHtml(unsafe) {
+        return String(unsafe)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+    });
+  </script>
+</body>
+</html>
